@@ -78,6 +78,7 @@ function setup(w: World, extra: [RegExp, Handler][] = []) {
   return { gh, store, src };
 }
 
+const boardBatch = (batches: { items: DocumentInput[] }[]) => batches.find((b) => b.items.some((d) => d.type === 'github.project'))!.items;
 const cfg = (roots: string[]): Config => ({ login: 'me', userId: 42, folderRoots: roots.map((id) => ({ id, name: id })), backfillDays: 30 });
 async function drain(src: ReturnType<typeof setup>['src'], store: ReturnType<typeof corpus>, config: Config, cursor: Cursor | null) {
   const session = fakeSession({ account: { id: 'acc', config, cursor }, credentials: { accessToken: 'tok' } });
@@ -134,7 +135,7 @@ describe('pull', () => {
     const day = store.docs.get('github.day|acme/api:2026-10-08')!;
     expect(day.scopeRootId).toBe('repo:acme/api');
     expect(day.markdown).toContain('feat: api thing');
-    const agg = batches.find((b) => Array.isArray(b.items[0]))!.items[0] as DocumentInput[];
+    const agg = boardBatch(batches);
     expect(agg.at(-1)!.type).toBe('github.project');
     expect((agg.at(-1)!.metadata.snapshot as { items: object }).items).toHaveProperty('I1');
     expect(agg.some((d) => d.externalId === 'acme/project/3:2026-10-08')).toBe(true);
@@ -185,11 +186,8 @@ describe('pull', () => {
     s2.store.docs = s1.store.docs as never;
     const session = fakeSession({ account: { id: 'acc', config: cfg(['org:acme']), cursor: r1.cursor }, credentials: { accessToken: 't' } });
     for await (const b of s2.src.pull(session, r1.cursor)) {
-      for (const it of b.items) {
-        const arr = ([] as DocumentInput[]).concat(it as DocumentInput);
-        s1.store.apply(arr.filter((d) => d.type !== 'github.project'));
-      }
-      if (b.items.some((it) => Array.isArray(it))) break; // crash
+      s1.store.apply(b.items.filter((d) => d.type !== 'github.project'));
+      if (b.items.some((d) => d.type === 'github.project')) break; // crash before the snapshot doc
     }
     const r3 = await drain(s2.src, s1.store, cfg(['org:acme']), r1.cursor);
     const day = s1.store.docs.get('github.project_day|acme/project/3:2026-10-08')!;
@@ -227,7 +225,7 @@ describe('manageFolders', () => {
     const cur = structuredClone(r1.cursor);
     delete cur.projects['acme/3'];
     const r2 = await drain(src, store, cfg(['org:acme']), cur);
-    const agg = r2.batches.find((b) => Array.isArray(b.items[0]))!.items[0] as DocumentInput[];
+    const agg = boardBatch(r2.batches);
     expect(agg.map((d) => d.externalId)).toContain('acme/project/3:2026-10-08');
     expect(store.docs.get('github.project_day|acme/project/3:2026-10-08')!.archived).toBe(false);
   });

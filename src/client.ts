@@ -167,7 +167,9 @@ export class GitHubClient {
     for (let page = 0; next && page < maxPages; page++) {
       const r = await this.request(next);
       // /search/* answers with an envelope { total_count, items }.
-      const raw = r.data as { items?: unknown } | unknown[] | null;
+      const raw = r.data as { items?: unknown; incomplete_results?: boolean } | unknown[] | null;
+      // A timed-out search returns a partial page: never checkpoint on it.
+      if (raw && !Array.isArray(raw) && raw.incomplete_results === true) throw new Error('github: incomplete search results, retrying later');
       const data = (Array.isArray(raw) ? raw : Array.isArray((raw as { items?: unknown })?.items) ? (raw as { items: unknown[] }).items : []) as T[];
       yield { data, headers: r.headers };
       next = NEXT.exec(r.headers['link'] ?? '')?.[1] ?? null;

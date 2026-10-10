@@ -130,6 +130,12 @@ describe('items', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('incomplete search results never advance the watermark', async () => {
+    const { client } = fakeGitHub([[/search\/issues/, () => ({ incomplete_results: true, items: [] })]]);
+    const states = { 'acme/api': state({ itemsSyncedTo: '2026-10-01T00:00:00Z' }) };
+    await expect(syncItems(client, { query: 'q updated:>=x', repos: ['acme/api'] }, states, tz, noLedgers(), '2026-10-10T00:00:00Z')).rejects.toThrow(/incomplete/);
+    expect(states['acme/api'].itemsSyncedTo).toBe('2026-10-01T00:00:00Z');
+  });
   it('SSO failure during a refetch keeps the watermark so recovery retries it', async () => {
     const { client } = fakeGitHub([
       [/search\/issues/, () => ({ items: [hit(8, '2026-10-08T09:00:00Z')] })],

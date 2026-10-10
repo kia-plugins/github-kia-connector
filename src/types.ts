@@ -63,4 +63,5 @@ export interface Entry {
   detail?: string;
 }
 
-export type Item = DocumentInput | DocumentInput[];
+/** Pull yields finished documents; toDocument is the identity. */
+export type Item = DocumentInput;

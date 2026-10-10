@@ -1,5 +1,5 @@
 import type { DocumentInput } from '@kiagent/connector-sdk';
-import type { GitHubClient } from './client';
+import { NotFoundError, type GitHubClient } from './client';
 import type { InvBoard } from './scope';
 import type { Entry } from './types';
 
@@ -61,7 +61,8 @@ export async function scanBoard(c: GitHubClient, board: InvBoard): Promise<{ ite
   let after: string | null = null;
   for (let first = true; ; first = false) {
     const d: { node: { fields: { nodes: ({ name?: string; options?: { name: string }[] } | null)[] }; items: { nodes: RawItem[]; pageInfo: { hasNextPage: boolean; endCursor: string } } } | null } = await c.graphql(ITEMS, { id: board.id, c: after });
-    if (!d.node) break;
+    // Never an empty scan: that would read as "every item removed".
+    if (!d.node) throw new NotFoundError(`board ${board.owner}/${board.number}`);
     if (first) statusOrder = d.node.fields.nodes.find((f) => f?.name === 'Status')?.options?.map((o) => o.name) ?? [];
     for (const n of d.node.items.nodes) {
       const fv = n.fieldValues.nodes;
@@ -120,15 +121,15 @@ export function diffBoard(prev: BoardSnapshot | null, now: ScannedItem[], horizo
     let moved = false;
     for (const [field, key, valueKey] of fields) {
       const v = it[valueKey];
-      if (!prev) {
-        // First scan: only a value changed AFTER the item was added is a move.
+      if (!old) {
+        // First sight of the item (first scan, or added since the last one):
+        // only a value changed AFTER the item was added is a move.
         if (v && v.updatedAt > it.createdAt) {
           out.push({ id: `move:${it.id}:${field}:${v.name}@${v.updatedAt}`, at: v.updatedAt, actor: v.creator, text: `moved ${name} to ${v.name}` });
           moved = true;
         }
         continue;
       }
-      if (!old) continue;
       if (v && old[key] !== v.name) {
         out.push({ id: `move:${it.id}:${field}:${v.name}@${v.updatedAt}`, at: v.updatedAt, actor: v.creator, text: `moved ${name} ${old[key] ?? '(none)'} → ${v.name}` });
       } else if (!v && old[key] != null) {

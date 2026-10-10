@@ -1,4 +1,6 @@
-import { diffBoard, renderBoard, restoreBoardDays, toSnapshot, type ScannedItem, type StoredDoc } from '../project';
+import { NotFoundError } from '../client';
+import { fakeGitHub } from './helpers/fake-github';
+import { scanBoard, diffBoard, renderBoard, restoreBoardDays, toSnapshot, type ScannedItem, type StoredDoc } from '../project';
 import type { InvBoard } from '../scope';
 
 const Y = '2026-10-08T10:00:00Z';
@@ -50,6 +52,13 @@ describe('diffBoard subsequent scans', () => {
       ['removed:R@2026-10-08T08:00:00Z', '2026-10-08T08:00:00Z', 'Unknown'],
     ]);
   });
+  it('item added AND moved between two polls keeps both the add and the move', () => {
+    const e = diffBoard(prev, [withStatus('I', 'Todo', '2026-10-07T00:00:00Z'), item('R'), withStatus('N', 'Done', '2026-10-08T10:12:00Z', { createdAt: '2026-10-08T10:01:00Z' })], horizon);
+    expect(e.map((x) => [x.id, x.actor])).toEqual([
+      ['move:N:Status:Done@2026-10-08T10:12:00Z', 'bob'],
+      ['added:N@2026-10-08T10:01:00Z', 'alice'],
+    ]);
+  });
   it('new item since last scan → added', () => {
     const e = diffBoard(prev, [withStatus('I', 'Todo', '2026-10-07T00:00:00Z'), item('R'), item('N', { createdAt: Y })], horizon);
     expect(e.map((x) => x.id)).toEqual([`added:N@${Y}`]);
@@ -82,5 +91,12 @@ describe('restoreBoardDays', () => {
     expect(offsets).toEqual([0, 500, 1000]);
     expect(out).toHaveLength(400);
     expect(out[0]).toMatchObject({ externalId: 'acme/project/3:d0', scopeRootId: 'project:acme/3', metadata: { ledger: [] } });
+  });
+});
+
+describe('scanBoard', () => {
+  it('a vanished board is NotFound, never an empty scan', async () => {
+    const { client } = fakeGitHub([[/node\(id/, () => ({ data: { node: null }, errors: [{ type: 'NOT_FOUND', message: 'x' }] })]]);
+    await expect(scanBoard(client, { id: 'P' } as never)).rejects.toBeInstanceOf(NotFoundError);
   });
 });

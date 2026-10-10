@@ -309,7 +309,7 @@ export function createGitHubSource(
         // sub-commits per 50 docs, so a crash must never persist the new
         // snapshot ahead of its day docs.
         const aggregate: DocumentInput[] = [...restored.filter((d) => !fresh.has(d.externalId)), ...days, renderBoard(board, toSnapshot(scanned, passStart, statusOrder))];
-        return { phase: cur.phase, items: [aggregate], cursor: snap() };
+        return { phase: cur.phase, items: aggregate, cursor: snap() };
       }
     },
 
