@@ -24,21 +24,28 @@ export interface Ledgers {
 }
 
 export function makeLedgers(load: (externalId: string, type: DayType) => Promise<Entry[] | null>): Ledgers {
-  const pending = new Map<string, { type: DayType; entries: Entry[] }>();
+  // key → this pass's entries; `full` is set once the stored ledger is merged in.
+  const days = new Map<string, { type: DayType; entries: Entry[]; full: boolean }>();
+  const dirty = new Set<string>();
   return {
     put(key, type, entries) {
       if (!entries.length) return;
-      const p = pending.get(key) ?? { type, entries: [] };
-      p.entries = mergeLedger(p.entries, entries);
-      pending.set(key, p);
+      const d = days.get(key) ?? { type, entries: [], full: false };
+      d.entries = mergeLedger(d.entries, entries);
+      days.set(key, d);
+      dirty.add(key);
     },
     async take(prefix) {
       const out: [string, Entry[]][] = [];
-      for (const [key, p] of [...pending]) {
+      for (const key of [...dirty]) {
         if (!key.startsWith(prefix)) continue;
-        pending.delete(key);
-        const prior = await load(key, p.type);
-        out.push([key, mergeLedger(prior, p.entries)]);
+        dirty.delete(key);
+        const d = days.get(key)!;
+        if (!d.full) {
+          d.entries = mergeLedger(await load(key, d.type), d.entries);
+          d.full = true;
+        }
+        out.push([key, d.entries]);
       }
       return out;
     },
@@ -138,15 +145,9 @@ export async function syncReleases(c: GitHubClient, repos: InvRepo[], states: Re
     try {
       byRepo = await releasesChunk(c, chunk);
     } catch (e) {
-      if (!(e instanceof OrgBlockedError || e instanceof NotFoundError || /graphql/.test(String(e)))) throw e;
-      for (const r of chunk) {
-        try {
-          Object.assign(byRepo, await releasesChunk(c, [r]));
-        } catch (e2) {
-          if (!(e2 instanceof OrgBlockedError || e2 instanceof NotFoundError || /graphql/.test(String(e2)))) throw e2;
-          log?.(`github: releases skipped for ${r.full}: ${String(e2)}`);
-        }
-      }
+      // Releases carry no watermark: a failed chunk is simply re-polled next pass.
+      if (!(e instanceof OrgBlockedError || e instanceof NotFoundError)) throw e;
+      log?.(`github: releases skipped for ${chunk.length} repos: ${String(e)}`);
     }
     for (const r of chunk) {
       const st = states[r.full];

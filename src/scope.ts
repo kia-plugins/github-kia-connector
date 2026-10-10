@@ -1,5 +1,5 @@
 import type { FolderNode, FolderPickerSpec } from '@kiagent/connector-sdk';
-import type { GitHubClient } from './client';
+import { InsufficientScopesError, NotFoundError, OrgBlockedError, type GitHubClient } from './client';
 
 export type OwnerType = 'User' | 'Organization';
 
@@ -145,7 +145,14 @@ export function pickerSpec(a: {
       const group = /^projects:(.+)$/.exec(id);
       if (group) {
         const owner = group[1];
-        const boards = await loadBoards(c, owner, owner === me ? 'User' : (ownerType.get(owner) ?? 'Organization'), me);
+        let boards: InvBoard[];
+        try {
+          boards = await loadBoards(c, owner, owner === me ? 'User' : (ownerType.get(owner) ?? 'Organization'), me);
+        } catch (e) {
+          // No read:project, SSO-blocked org: an empty group, never a broken picker.
+          if (e instanceof InsufficientScopesError || e instanceof OrgBlockedError || e instanceof NotFoundError) return [];
+          throw e;
+        }
         return boards.map((b) => ({ id: boardLeaf(owner, b.number), name: `#${b.number} ${b.title}`, hasChildren: false }));
       }
       return [];

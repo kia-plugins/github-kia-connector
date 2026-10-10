@@ -1,3 +1,4 @@
+import { fakeGitHub } from './helpers/fake-github';
 import { archiveSet, covers, expandFor, pickerSpec, type InvRepo } from '../scope';
 
 const me = 'me';
@@ -43,6 +44,11 @@ describe('picker', () => {
   it('no shared root without other-user repos', async () => {
     const s = pickerSpec({ c: {} as never, me, inv: inv.slice(0, 2), purpose: 'connect' });
     expect((await s.roots('repos')).map((n) => n.id)).toEqual(['acct:me', 'org:X']);
+  });
+  it('projects group without read:project (or SSO-blocked) is empty, not an error', async () => {
+    const { client } = fakeGitHub([[/organization\(login/, () => ({ data: null, errors: [{ type: 'INSUFFICIENT_SCOPES', message: 'read:project' }] })]]);
+    const s = pickerSpec({ c: client, me, inv, purpose: 'connect' });
+    await expect(s.children('projects:X')).resolves.toEqual([]);
   });
   it('expand covers ancestors only', () => {
     expect(expandFor([{ id: 'project:X/3' }], me, typeOf)).toEqual(['org:X', 'projects:X']);

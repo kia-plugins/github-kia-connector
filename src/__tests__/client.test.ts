@@ -1,4 +1,4 @@
-import { GitHubClient, NotFoundError, InsufficientScopesError } from '../client';
+import { GitHubClient, NotFoundError, InsufficientScopesError, OrgBlockedError } from '../client';
 
 const enc = new TextEncoder();
 const res = (status: number, body: unknown = {}, headers: Record<string, string> = {}) => ({
@@ -91,6 +91,21 @@ describe('GitHubClient classification', () => {
   it('GraphQL INSUFFICIENT_SCOPES → InsufficientScopesError', async () => {
     const { c } = client([res(200, { data: null, errors: [{ type: 'INSUFFICIENT_SCOPES', message: 'needs read:project' }] })]);
     await expect(c.graphql('{x}')).rejects.toBeInstanceOf(InsufficientScopesError);
+  });
+});
+
+describe('GitHubClient GraphQL errors', () => {
+  it('SAML-forbidden with no data → OrgBlockedError', async () => {
+    const { c } = client([res(200, { data: null, errors: [{ type: 'FORBIDDEN', message: 'Resource protected by organization SAML enforcement.' }] })]);
+    await expect(c.graphql('{x}')).rejects.toBeInstanceOf(OrgBlockedError);
+  });
+  it('partial data (one null alias) is returned, not thrown', async () => {
+    const { c } = client([res(200, { data: { r0: { ok: 1 }, r1: null }, errors: [{ type: 'NOT_FOUND', path: ['r1'], message: 'no repo' }] })]);
+    await expect(c.graphql('{x}')).resolves.toEqual({ r0: { ok: 1 }, r1: null });
+  });
+  it('NOT_FOUND with no data → NotFoundError', async () => {
+    const { c } = client([res(200, { data: null, errors: [{ type: 'NOT_FOUND', message: 'gone' }] })]);
+    await expect(c.graphql('{x}')).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 

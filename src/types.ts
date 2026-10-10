@@ -19,14 +19,12 @@ export interface RepoState {
   branchHeads: Record<string, string>;
   /** ISO watermark for touched issues/PRs. */
   itemsSyncedTo: string;
-  unavailable?: boolean;
 }
 
 export interface ProjectState {
   horizon: string;
   /** Board `updatedAt` at the last scan ('' = never scanned). */
   updatedAt: string;
-  unavailable?: boolean;
 }
 
 export interface Cursor {

@@ -167,11 +167,6 @@ export function createGitHubSource(
         }
       }
       if (registered) yield { phase: cur.phase, items: [], cursor: snap() };
-      const live = new Set(inv.map((r) => r.full));
-      for (const [full, st] of Object.entries(cur.repos)) {
-        if (live.has(full)) delete st.unavailable;
-        else st.unavailable = true;
-      }
 
       const led = makeLedgers(async (id, type) => {
         const d = await host.query.byExternalId(session.account.id, id, type);
@@ -191,7 +186,9 @@ export function createGitHubSource(
         for (const [key, ledger] of await led.take(prefix)) out.push(renderDay({ kind, leaf, day: key.slice(prefix.length), tz, ledger, ...meta }));
         return out;
       };
-      const available = () => covered.filter((r) => !cur.repos[r.full]?.unavailable && !blocked.has(r.owner));
+      // Leaves absent upstream are simply not in `covered`: state and docs kept.
+      const gone = new Set<string>();
+      const available = () => covered.filter((r) => !gone.has(r.full) && !blocked.has(r.owner));
 
       // 2. commits, push-gated; one batch per repo.
       for (const r of available()) {
@@ -202,7 +199,7 @@ export function createGitHubSource(
           okOwners.add(r.owner);
         } catch (e) {
           if (e instanceof OrgBlockedError) block(r.owner, e);
-          else if (e instanceof NotFoundError) st.unavailable = true;
+          else if (e instanceof NotFoundError) gone.add(r.full);
           else throw e;
           continue;
         }
@@ -261,10 +258,7 @@ export function createGitHubSource(
               block(owner, e);
               break;
             }
-            if (e instanceof NotFoundError) {
-              if (cur.projects[leafKey]) cur.projects[leafKey].unavailable = true;
-              continue;
-            }
+            if (e instanceof NotFoundError) continue;
             throw e;
           }
         }
@@ -302,7 +296,6 @@ export function createGitHubSource(
           }
           st = { horizon: horizonNew, updatedAt: '' };
         }
-        delete st.unavailable;
         if (board.updatedAt === st.updatedAt && !restored.length) return null;
         const { items: scanned, statusOrder } = await scanBoard(c, board);
         const prev = ((prevDoc?.metadata as { snapshot?: BoardSnapshot } | undefined)?.snapshot ?? null) as BoardSnapshot | null;

@@ -186,11 +186,14 @@ export class GitHubClient {
 
   async graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
     const r = await this.request(API + '/graphql', { method: 'POST', body: JSON.stringify({ query, variables }) }, true);
-    const body = r.data as { data?: T; errors?: { type?: string; message?: string }[] } | null;
-    if (body?.errors?.length && !body.data) {
-      const nf = body.errors.find((e) => e.type === 'NOT_FOUND');
-      if (nf) throw new NotFoundError(nf.message ?? 'not found');
-      throw new Error(`github graphql: ${body.errors.map((e) => e.message).join('; ')}`);
+    const body = r.data as { data?: T | null; errors?: { type?: string; message?: string }[] } | null;
+    const errors = body?.errors ?? [];
+    // Partial data is normal for aliased queries: a blocked or deleted
+    // repo is a null alias next to healthy ones — callers skip nulls.
+    if (errors.length && body?.data == null) {
+      if (errors.some((e) => e.type === 'FORBIDDEN' && /SAML/i.test(e.message ?? ''))) throw new OrgBlockedError();
+      if (errors.some((e) => e.type === 'NOT_FOUND')) throw new NotFoundError(errors[0].message ?? 'not found');
+      throw new Error(`github graphql: ${errors.map((e) => e.message).join('; ')}`);
     }
     return body?.data as T;
   }
