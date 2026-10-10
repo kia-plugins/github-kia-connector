@@ -166,7 +166,9 @@ export class GitHubClient {
     let next: string | null = this.url(path, { per_page: 100, ...(query ?? {}) });
     for (let page = 0; next && page < maxPages; page++) {
       const r = await this.request(next);
-      const data = (Array.isArray(r.data) ? r.data : []) as T[];
+      // /search/* answers with an envelope { total_count, items }.
+      const raw = r.data as { items?: unknown } | unknown[] | null;
+      const data = (Array.isArray(raw) ? raw : Array.isArray((raw as { items?: unknown })?.items) ? (raw as { items: unknown[] }).items : []) as T[];
       yield { data, headers: r.headers };
       next = NEXT.exec(r.headers['link'] ?? '')?.[1] ?? null;
     }
