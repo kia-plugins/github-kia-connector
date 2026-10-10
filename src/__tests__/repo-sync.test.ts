@@ -130,10 +130,24 @@ describe('items', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('incomplete search results never advance the watermark', async () => {
+  it('incomplete page 2 keeps page-1 progress (watermark = last processed hit), returns its docs, no throw', async () => {
+    const { client } = fakeGitHub([
+      [/search\/issues/, (u) =>
+        u.searchParams.get('page') === '2'
+          ? { incomplete_results: true, items: [] }
+          : jsonRes(200, { items: [hit(9, '2026-10-03T00:00:00Z')] }, { link: '<https://api.github.com/search/issues?q=x&page=2>; rel="next"' })],
+      [/issues\/9\/comments/, () => []],
+      [/issues\/9$/, () => issue(9, '2026-10-03T00:00:00Z')],
+    ]);
+    const states = { 'acme/api': state({ itemsSyncedTo: '2026-10-01T00:00:00Z' }) };
+    const docs = await syncItems(client, { query: 'q updated:>=x', repos: ['acme/api'] }, states, tz, noLedgers(), '2026-10-10T00:00:00Z');
+    expect(docs.map((d) => d.externalId)).toEqual(['acme/api#9']);
+    expect(states['acme/api'].itemsSyncedTo).toBe('2026-10-03T00:00:00Z');
+  });
+  it('incomplete first page: watermark untouched, no throw', async () => {
     const { client } = fakeGitHub([[/search\/issues/, () => ({ incomplete_results: true, items: [] })]]);
     const states = { 'acme/api': state({ itemsSyncedTo: '2026-10-01T00:00:00Z' }) };
-    await expect(syncItems(client, { query: 'q updated:>=x', repos: ['acme/api'] }, states, tz, noLedgers(), '2026-10-10T00:00:00Z')).rejects.toThrow(/incomplete/);
+    await expect(syncItems(client, { query: 'q updated:>=x', repos: ['acme/api'] }, states, tz, noLedgers(), '2026-10-10T00:00:00Z')).resolves.toEqual([]);
     expect(states['acme/api'].itemsSyncedTo).toBe('2026-10-01T00:00:00Z');
   });
   it('SSO failure during a refetch keeps the watermark so recovery retries it', async () => {

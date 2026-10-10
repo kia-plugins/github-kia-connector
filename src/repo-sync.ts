@@ -1,5 +1,5 @@
 import type { DocumentInput } from '@kiagent/connector-sdk';
-import { NotFoundError, OrgBlockedError, type GhCommit, type GitHubClient } from './client';
+import { IncompleteSearchError, NotFoundError, OrgBlockedError, type GhCommit, type GitHubClient } from './client';
 import { dayKeyOf, mergeLedger } from './day';
 import { itemEntries, renderItem, type FullItem } from './item';
 import { actorOf, coAuthors, type Actorish } from './people';
@@ -249,6 +249,10 @@ export async function syncItems(c: GitHubClient, group: SearchGroup, states: Rec
   const failed = new Set<string>();
   const inGroup = new Set(group.repos);
   let query = group.query;
+  // Hits arrive oldest-first, so everything up to `processed` is done: a
+  // search that times out part-way keeps that progress instead of looping.
+  let processed: string | null = null;
+  try {
   for (;;) {
     let pages = 0;
     let last: string | null = null;
@@ -256,6 +260,7 @@ export async function syncItems(c: GitHubClient, group: SearchGroup, states: Rec
       pages++;
       for (const h of p.data) {
         last = h.updated_at;
+        processed = h.updated_at;
         const repo = h.repository_url.replace(/^.*\/repos\//, '');
         const st = states[repo];
         const key = `${repo}#${h.number}`;
@@ -281,6 +286,12 @@ export async function syncItems(c: GitHubClient, group: SearchGroup, states: Rec
     // Search caps at 1000 results (10 pages): slide the lower bound forward.
     if (pages < 10 || !last) break;
     query = query.replace(/updated:>=\S+/, `updated:>=${ghTime(last)}`);
+  }
+  } catch (e) {
+    if (!(e instanceof IncompleteSearchError)) throw e;
+    log?.(`github: search timed out for ${group.repos.length} repos; resuming next pass`);
+    if (processed) for (const r of group.repos) if (!failed.has(r) && processed > states[r].itemsSyncedTo) states[r].itemsSyncedTo = processed;
+    return docs;
   }
   for (const r of group.repos) if (!failed.has(r)) states[r].itemsSyncedTo = passStart;
   return docs;

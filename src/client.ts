@@ -17,6 +17,8 @@ export class OrgBlockedError extends Error {
 }
 export class NotFoundError extends Error {}
 export class InsufficientScopesError extends Error {}
+/** A search page that timed out upstream (`incomplete_results`). */
+export class IncompleteSearchError extends Error {}
 
 export interface GhCommit {
   sha: string;
@@ -162,14 +164,14 @@ export class GitHubClient {
   }
 
   /** Follows Link rel=next. */
-  async *restPages<T>(path: string, query?: Record<string, string | number>, maxPages = Infinity): AsyncGenerator<{ data: T[]; headers: Record<string, string> }> {
+  async *restPages<T>(path: string, query?: Record<string, string | number>): AsyncGenerator<{ data: T[]; headers: Record<string, string> }> {
     let next: string | null = this.url(path, { per_page: 100, ...(query ?? {}) });
-    for (let page = 0; next && page < maxPages; page++) {
+    while (next) {
       const r = await this.request(next);
       // /search/* answers with an envelope { total_count, items }.
       const raw = r.data as { items?: unknown; incomplete_results?: boolean } | unknown[] | null;
       // A timed-out search returns a partial page: never checkpoint on it.
-      if (raw && !Array.isArray(raw) && raw.incomplete_results === true) throw new Error('github: incomplete search results, retrying later');
+      if (raw && !Array.isArray(raw) && raw.incomplete_results === true) throw new IncompleteSearchError('github: incomplete search results');
       const data = (Array.isArray(raw) ? raw : Array.isArray((raw as { items?: unknown })?.items) ? (raw as { items: unknown[] }).items : []) as T[];
       yield { data, headers: r.headers };
       next = NEXT.exec(r.headers['link'] ?? '')?.[1] ?? null;

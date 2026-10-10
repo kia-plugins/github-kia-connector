@@ -1,4 +1,4 @@
-import type { DocumentInput } from '@kiagent/connector-sdk';
+import type { Document, DocumentInput } from '@kiagent/connector-sdk';
 import { NotFoundError, type GitHubClient } from './client';
 import type { InvBoard } from './scope';
 import type { Entry } from './types';
@@ -193,19 +193,9 @@ export function renderBoard(board: InvBoard, snap: BoardSnapshot): DocumentInput
 
 /* --------------------------------------------------------------- restore */
 
-export interface StoredDoc {
-  externalId: string;
-  type: string;
-  title: string | null;
-  markdown: string | null;
-  url?: string;
-  metadata: Record<string, unknown>;
-  createdAt: string | null;
-}
-
 /** Re-emit a re-ticked board's archived day docs (within retention) so they
  *  come back live. Pages the core search (cap 500) until a short page. */
-export async function restoreBoardDays(search: (offset: number) => Promise<StoredDoc[]>, owner: string, number: number): Promise<DocumentInput[]> {
+export async function restoreBoardDays(search: (offset: number) => Promise<Document[]>, owner: string, number: number): Promise<DocumentInput[]> {
   const prefix = `${owner}/project/${number}:`;
   const out: DocumentInput[] = [];
   for (let offset = 0; ; offset += 500) {

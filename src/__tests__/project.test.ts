@@ -1,6 +1,6 @@
 import { NotFoundError } from '../client';
 import { fakeGitHub } from './helpers/fake-github';
-import { scanBoard, diffBoard, renderBoard, restoreBoardDays, toSnapshot, type ScannedItem, type StoredDoc } from '../project';
+import { scanBoard, diffBoard, renderBoard, restoreBoardDays, toSnapshot, type ScannedItem } from '../project';
 import type { InvBoard } from '../scope';
 
 const Y = '2026-10-08T10:00:00Z';
@@ -83,9 +83,9 @@ describe('renderBoard', () => {
 
 describe('restoreBoardDays', () => {
   it('pages until a short page and keeps only this board', async () => {
-    const rows: StoredDoc[] = [];
-    for (let i = 0; i < 700; i++) rows.push({ externalId: `acme/project/9:2026-09-${i}`, type: 'github.project_day', title: 't', markdown: 'm', metadata: {}, createdAt: Y });
-    for (let i = 0; i < 400; i++) rows.push({ externalId: `acme/project/3:d${i}`, type: 'github.project_day', title: 't', markdown: 'm', metadata: { ledger: [] }, createdAt: Y });
+    const rows: never[] = [];
+    for (let i = 0; i < 700; i++) rows.push(<never>{ externalId: `acme/project/9:2026-09-${i}`, type: 'github.project_day', title: 't', markdown: 'm', metadata: {}, createdAt: Y });
+    for (let i = 0; i < 400; i++) rows.push(<never>{ externalId: `acme/project/3:d${i}`, type: 'github.project_day', title: 't', markdown: 'm', metadata: { ledger: [] }, createdAt: Y });
     const offsets: number[] = [];
     const out = await restoreBoardDays(async (off) => (offsets.push(off), rows.slice(off, off + 500)), 'acme', 3);
     expect(offsets).toEqual([0, 500, 1000]);

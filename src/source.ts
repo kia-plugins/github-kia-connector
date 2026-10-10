@@ -280,16 +280,7 @@ export function createGitHubSource(
           if (prevDoc) {
             const fromDate = dayStartIso(dayKey(horizonNew, tz), tz);
             restored = await restoreBoardDays(
-              async (offset) =>
-                (await host.query.search({ type: DOC.projectDay, account: session.account.id, includeArchived: true, fromDate, limit: 500, offset })).map((d) => ({
-                  externalId: d.externalId,
-                  type: d.type,
-                  title: d.title,
-                  markdown: d.markdown,
-                  url: d.url,
-                  metadata: d.metadata,
-                  createdAt: d.createdAt,
-                })),
+              (offset) => host.query.search({ type: DOC.projectDay, account: session.account.id, includeArchived: true, fromDate, limit: 500, offset }),
               board.owner,
               board.number,
             );
