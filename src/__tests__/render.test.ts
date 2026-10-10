@@ -76,6 +76,10 @@ describe('items', () => {
     expect(d.metadata.participants).toEqual(expect.arrayContaining(['Alice <alice>', 'bob', 'carol', 'dave', 'erin']));
     expect(d.metadata.updatedAt).toBe('2026-10-08T12:00:00Z');
   });
+  it('the closer of an issue is a participant', () => {
+    const d = renderItem({ ...pr, isPr: false, state: 'closed', mergedAt: null, mergedBy: null, closedAt: '2026-10-08T12:00:00Z', closedBy: { login: 'zoe' } });
+    expect(d.metadata.participants).toContain('zoe');
+  });
   it('itemEntries has stable ids', () => {
     const ids = itemEntries(pr).map((x) => x.id);
     expect(itemEntries(pr).map((x) => x.id)).toEqual(ids);

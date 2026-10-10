@@ -81,6 +81,7 @@ export function renderItem(i: FullItem): DocumentInput {
   for (const c of i.comments) participants.add(actorOf(c.author));
   for (const r of i.reviews) participants.add(actorOf(r.author));
   if (i.mergedBy) participants.add(actorOf(i.mergedBy));
+  if (i.closedBy && i.state === 'closed') participants.add(actorOf(i.closedBy));
   participants.delete('Unknown');
 
   return {
