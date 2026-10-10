@@ -1,1 +1,1 @@
-module.exports = { testEnvironment: 'node', transform: { '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }] } };
+module.exports = { testEnvironment: 'node', testMatch: ['**/__tests__/**/*.test.ts'], transform: { '^.+\\.tsx?$': ['ts-jest', { diagnostics: false }] } };

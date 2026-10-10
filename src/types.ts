@@ -42,12 +42,14 @@ export interface Cursor {
   projectsUnavailable?: boolean;
 }
 
-export interface Config {
+/** A type alias (not an interface) so it gets the implicit index signature
+ *  `Account.config: Record<string, unknown>` requires. */
+export type Config = {
   login: string;
   userId: number;
   folderRoots: { id: string; name: string }[];
   backfillDays: 7 | 30 | 90 | 365;
-}
+};
 
 /** One day-ledger entry. `id` is the dedupe key (spec §6.3). */
 export interface Entry {
