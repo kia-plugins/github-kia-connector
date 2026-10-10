@@ -1,0 +1,13 @@
+{
+  "id": "kia.github",
+  "name": "GitHub",
+  "version": "1.0.0",
+  "engine": "^2.10.0",
+  "entry": "dist/index.js",
+  "caps": ["net", "query"],
+  "contributes": {
+    "sources": [{ "id": "github", "oauth": "github" }],
+    "senders": []
+  },
+  "icon": "icon.png"
+}
